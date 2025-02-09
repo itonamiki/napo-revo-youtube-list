@@ -1,0 +1,47 @@
+name: Update channel_data.json
+
+on:
+  push:
+    branches:
+      - main      # mainブランチにpushした時
+  schedule:
+    - cron: '0 0 * * *'  # 毎日0:00 UTCに実行
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          pip install google-api-python-client
+
+      - name: Run load.py
+        env:
+          YT_API_KEY: ${{ secrets.YT_API_KEY }}
+          YT_CHANNEL_ID: ${{ vars.YT_CHANNEL_ID }}
+        run: |
+          python load.py
+
+      - name: Configure git
+        run: |
+          git config user.name github-actions
+          git config user.email "[email protected]"
+
+      - name: Commit changes
+        run: |
+          git add channel_data.json
+          git commit -m "Update channel_data.json" || echo "No changes to commit"
+
+      - name: Push changes
+        run: |
+          git push

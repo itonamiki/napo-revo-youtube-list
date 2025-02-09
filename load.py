@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import sys
 from googleapiclient.discovery import build
@@ -120,14 +121,17 @@ def get_channel_data(api_key, channel_id):
     return {"channel_info": channel_info, "videos": videos}
 
 def main():
-    # ユーザー入力から API Key と チャンネルID を取得
-    api_key = input("YouTube API Key を入力してください: ").strip()
-    channel_id = input("チャンネルID を入力してください: ").strip()
+    api_key = os.environ.get("YT_API_KEY")
+    channel_id = os.environ.get("YT_CHANNEL_ID")
 
-    if not api_key or not channel_id:
-        print("API Key と チャンネルID の両方を入力してください。")
-        sys.exit(1)
+    if not api_key:
+        print("Error: YouTube API Key が見つかりません。環境変数 YT_API_KEY を設定してください。")
+        return
+    if not channel_id:
+        print("Error: Channel ID が見つかりません。環境変数 YT_CHANNEL_ID を設定してください。")
+        return
     
+
     print("情報を取得中...")
     channel_data = get_channel_data(api_key, channel_id)
     if channel_data is None:

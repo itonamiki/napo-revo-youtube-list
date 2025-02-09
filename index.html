@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>YouTube 動画一覧</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-5xl mx-auto p-4">
+    
+    <!-- ページネーション（上部に配置） -->
+    <div class="flex justify-center items-center space-x-2 mb-4">
+      <button 
+        @click="prevPage" 
+        :disabled="currentPage === 1"
+        class="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50">
+        前へ
+      </button>
+      <span class="text-lg">ページ {{ currentPage }} / {{ totalPages }}</span>
+      <input 
+        type="number" 
+        v-model.number="jumpPage" 
+        min="1" 
+        :max="totalPages" 
+        class="w-20 px-2 py-1 border rounded" />
+      <button 
+        @click="goToPage"
+        class="px-4 py-2 bg-blue-500 text-white rounded">
+        Go
+      </button>
+      <button 
+        @click="nextPage" 
+        :disabled="currentPage === totalPages"
+        class="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50">
+        次へ
+      </button>
+    </div>
+    
+    <div class="overflow-x-auto">
+      <table class="min-w-full bg-white border border-gray-200">
+        <thead class="bg-gray-200">
+          <tr>
+            <th class="px-4 py-2 border border-gray-300">サムネイル</th>
+            <th class="px-4 py-2 border border-gray-300" style="width: 300px;">タイトル</th>
+            <th class="px-4 py-2 border border-gray-300">投稿日時</th>
+            <th class="px-4 py-2 border border-gray-300">再生回数</th>
+            <th class="px-4 py-2 border border-gray-300">再生時間</th>
+            <th class="px-4 py-2 border border-gray-300">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="video in pagedVideos" :key="video.動画ID" class="border-t border-gray-200">
+            <td class="px-4 py-2 border border-gray-300">
+              <img :src="video.サムネイルURL" alt="Thumbnail" class="w-24 md:w-32">
+            </td>
+            <td class="px-4 py-2 border border-gray-300">
+              <a :href="'https://www.youtube.com/watch?v=' + video.動画ID" target="_blank" class="text-blue-600 hover:underline">
+                {{ video.タイトル }}
+              </a>
+            </td>
+            <td class="px-4 py-2 border border-gray-300">
+              {{ formatDate(video.公開日) }}
+            </td>
+            <td class="px-4 py-2 border border-gray-300">
+              {{ formatNumber(video.再生回数) }}
+            </td>
+            <td class="px-4 py-2 border border-gray-300">
+              {{ formatDuration(video.再生時間) }}
+            </td>
+            <td class="px-4 py-2 border border-gray-300">
+              <button 
+                @click="continuousPlay(getIndex(video))" 
+                class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">
+                ここから連続再生
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+  </div>
+  
+  <script>
+    new Vue({
+      el: "#app",
+      data: {
+        videos: [],       // JSONから取得した全動画データ
+        currentPage: 1,   // 現在のページ番号
+        pageSize: 50,     // 1ページあたりの表示件数
+        jumpPage: 1       // ユーザーが入力するジャンプ先ページ番号
+      },
+      computed: {
+        // 「ショート」を除外
+        filteredVideos() {
+          return this.videos.filter(video => video.動画種類 !== "ショート");
+        },
+        // 投稿日時の古い順にソート（昇順）
+        sortedVideos() {
+          return this.videos.slice().sort((a, b) => new Date(a.公開日) - new Date(b.公開日));
+        },
+        totalPages() {
+          return Math.ceil(this.sortedVideos.length / this.pageSize);
+        },
+        pagedVideos() {
+          const start = (this.currentPage - 1) * this.pageSize;
+          return this.sortedVideos.slice(start, start + this.pageSize);
+        }
+      },
+      methods: {
+        // channel_data.json を fetch で取得
+        fetchData() {
+          fetch("channel_data.json")
+            .then(response => response.json())
+            .then(data => {
+              this.videos = data.videos;
+            })
+            .catch(error => console.error("Error loading JSON:", error));
+        },
+        // 日付のフォーマット（例：2022/12/31 12:34:56）
+        formatDate(dateStr) {
+          const date = new Date(dateStr);
+          return date.toLocaleString();
+        },
+        // 数値をカンマ区切りに
+        formatNumber(numStr) {
+          const num = parseInt(numStr, 10);
+          return num.toLocaleString();
+        },
+        // ISO8601形式の再生時間（例："PT2M30S"）を秒数に変換
+        parseDuration(duration) {
+          const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
+          const matches = duration.match(regex);
+          if (!matches) return 0;
+          const hours = parseInt(matches[1]) || 0;
+          const minutes = parseInt(matches[2]) || 0;
+          const seconds = parseInt(matches[3]) || 0;
+          return hours * 3600 + minutes * 60 + seconds;
+        },
+        // 再生時間を「HH:MM:SS」または「MM:SS」形式にフォーマット
+        formatDuration(duration) {
+          const totalSeconds = this.parseDuration(duration);
+          const hours = Math.floor(totalSeconds / 3600);
+          const minutes = Math.floor((totalSeconds % 3600) / 60);
+          const seconds = totalSeconds % 60;
+          let result = "";
+          if (hours > 0) {
+            result += hours + ":";
+            result += (minutes < 10 ? "0" : "") + minutes + ":";
+          } else {
+            result += minutes + ":";
+          }
+          result += (seconds < 10 ? "0" : "") + seconds;
+          return result;
+        },
+        // ページ移動操作
+        prevPage() {
+          if (this.currentPage > 1) {
+            this.currentPage--;
+            this.jumpPage = this.currentPage;
+          }
+        },
+        nextPage() {
+          if (this.currentPage < this.totalPages) {
+            this.currentPage++;
+            this.jumpPage = this.currentPage;
+          }
+        },
+        goToPage() {
+          if (this.jumpPage >= 1 && this.jumpPage <= this.totalPages) {
+            this.currentPage = this.jumpPage;
+          }
+        },
+        // ソート済み動画リスト内で対象動画のインデックスを取得
+        getIndex(video) {
+          return this.sortedVideos.findIndex(v => v.動画ID === video.動画ID);
+        },
+        // 「ここから連続再生」ボタン押下時、指定動画以降の動画IDをまとめた公式連続再生URLを新規タブで開く
+        continuousPlay(startIndex) {
+          const ids = this.sortedVideos.slice(startIndex).map(v => v.動画ID);
+          if (ids.length > 0) {
+            const url = "https://www.youtube.com/watch_videos?video_ids=" + ids.join(",");
+            window.open(url, "_blank");
+          }
+        }
+      },
+      created() {
+        this.fetchData();
+      }
+    });
+  </script>
+</body>
+</html>
